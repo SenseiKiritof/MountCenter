@@ -1,0 +1,45 @@
+# On every v* tag: tests, the RPM, then one GitHub release with the package.
+# The tag must match VERSION in the Makefile and the spec (same rule as local builds).
+name: Release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  rpm:
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - name: Build dependencies
+        run: dnf install -y git make rpm-build rpmdevtools python3 systemd-rpm-macros
+      - uses: actions/checkout@v7
+      - name: Tag matches VERSION
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          v="$(sed -n 's/^VERSION := //p' Makefile)"
+          test "v$v" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME ≠ VERSION $v"; exit 1; }
+          make check-version
+      - name: Tests
+        run: python3 -m unittest discover -s tests -v
+      - name: RPM
+        run: make rpm
+      - uses: actions/upload-artifact@v7
+        with:
+          name: rpm
+          path: |
+            dist/*.rpm
+            dist/*.tar.gz
+  release:
+    needs: [rpm]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Release with the package, created once
+        uses: softprops/action-gh-release@v3
+        with:
+          files: dist/*
+          generate_release_notes: true
