@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=MountCenter
+Comment=Configure systemd automount entries for disks
+Exec=@PREFIX@/bin/mountcenter
+Icon=drive-harddisk
+Terminal=false
+Type=Application
+Categories=System;Settings;
+StartupNotify=true
