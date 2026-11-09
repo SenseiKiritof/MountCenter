@@ -197,6 +197,10 @@ class MountCenterWindow(Adw.ApplicationWindow):
             )
             row.set_activatable(True)
             row.device = device
+            if configured and configured[0].automount:
+                icon = Gtk.Image.new_from_icon_name("emblem-ok-symbolic")
+                icon.set_tooltip_text("Mount automatico configurato")
+                row.add_prefix(icon)
             self.device_list.append(row)
             first_row = first_row or row
 
