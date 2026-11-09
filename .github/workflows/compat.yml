@@ -1,0 +1,53 @@
+# Compatibility matrix: the core, the privileged helper and a GUI smoke test
+# (GTK4 window under Xvfb with a private D-Bus) on the supported distributions.
+name: Compatibility
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: fedora
+            image: fedora:latest
+            install: >-
+              dnf install -y python3 python3-gobject gobject-introspection
+              gtk4 libadwaita util-linux xorg-x11-server-Xvfb dbus-daemon
+          - name: debian
+            image: debian:trixie
+            install: >-
+              apt-get update -qq && apt-get install -y -qq python3 python3-gi
+              gir1.2-gtk-4.0 gir1.2-adw-1 libadwaita-1-0 util-linux xvfb dbus
+          - name: ubuntu
+            image: ubuntu:24.04
+            install: >-
+              apt-get update -qq && apt-get install -y -qq python3 python3-gi
+              gir1.2-gtk-4.0 gir1.2-adw-1 libadwaita-1-0 util-linux xvfb dbus
+          - name: arch
+            image: archlinux:latest
+            install: >-
+              pacman -Syu --noconfirm --needed python python-gobject gtk4
+              libadwaita util-linux xorg-server-xvfb dbus
+          - name: opensuse
+            image: opensuse/tumbleweed:latest
+            install: >-
+              zypper --non-interactive refresh && zypper --non-interactive install
+              python3 python3-gobject gtk4 libadwaita typelib-1_0-Gtk-4_0
+              typelib-1_0-Adw-1 util-linux xorg-x11-server-Xvfb xvfb-run
+              dbus-1-daemon gawk
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install GTK4, libadwaita and Xvfb
+        run: ${{ matrix.install }}
+      - name: Install script in a staging directory
+        run: |
+          DESTDIR=/tmp/stage ./install.sh
+          test -f /tmp/stage/usr/share/polkit-1/actions/io.github.senseikiritof.MountCenter.policy
+      - name: Tests
+        run: dbus-run-session -- xvfb-run -a python3 -m unittest discover -s tests -v

@@ -25,7 +25,7 @@ automount and permission switches, and the exact fstab line before applying:
 From a release package:
 
 ```bash
-sudo dnf install ./mountcenter-0.1.0-*.rpm
+sudo dnf install ./mountcenter-*.rpm
 mountcenter
 ```
 
@@ -56,12 +56,41 @@ sudo ./setup-automount.sh
 4. Check the fstab preview, then press **Applica**.
 5. Authenticate with polkit. On success the list refreshes.
 
-Entries already present in `/etc/fstab` are shown read-only. Removal is
-available through the helper:
+Entries already present in `/etc/fstab` are shown read-only; entries with
+automount configured carry a check icon in the list. Removal is available
+through the helper:
 
 ```bash
 sudo mountcenter/helper.py remove --uuid FE7B-D8D1
 ```
+
+## Compatibility
+
+Tested in containers by [`.github/workflows/compat.yml`](.github/workflows/compat.yml)
+(core, helper and GUI startup under Xvfb):
+
+| Distribution | Status |
+|---|---|
+| Fedora 44 / 45 | tested |
+| Debian 13 (trixie) | tested |
+| Ubuntu 24.04 LTS | tested |
+| Arch Linux | tested |
+| openSUSE Tumbleweed | tested |
+
+Requirements: a systemd-based distribution, Python 3.10+, GTK 4,
+libadwaita 1.5+, polkit with `pkexec`, and util-linux. Distributions without
+systemd are not supported, because `x-systemd.automount` is systemd-specific.
+Ubuntu 22.04 and Debian 12 ship libadwaita older than 1.5 and are not
+supported.
+
+Dependencies by distribution, when installing from source:
+
+| Distribution | Packages |
+|---|---|
+| Fedora | `python3-gobject gtk4 libadwaita polkit util-linux` |
+| Debian / Ubuntu | `python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 polkitd pkexec util-linux` |
+| Arch | `python-gobject gtk4 libadwaita polkit util-linux` |
+| openSUSE | `python3-gobject gtk4 libadwaita typelib-1_0-Gtk-4_0 typelib-1_0-Adw-1 polkit util-linux` |
 
 ## Remembered authorization (first launch)
 

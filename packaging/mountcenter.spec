@@ -1,5 +1,5 @@
 Name:           mountcenter
-Version:        0.1.0
+Version:        0.1.1
 Release:        1%{?dist}
 Summary:        Configure systemd automount entries for disks
 License:        GPL-3.0-or-later
@@ -39,5 +39,9 @@ make install DESTDIR=%{buildroot} PREFIX=%{_prefix}
 %{_datadir}/polkit-1/actions/io.github.senseikiritof.MountCenter.policy
 
 %changelog
+* Mon Nov 09 2026 senseikiritof <tonifede98@gmail.com> - 0.1.1-1
+- Automount check icon in the disk list
+- Compatibility tests on Debian, Ubuntu, Arch and openSUSE
+
 * Mon Nov 09 2026 senseikiritof <tonifede98@gmail.com> - 0.1.0-1
 - First package: GTK4 interface, privileged helper, first-launch polkit trust
