@@ -7,6 +7,8 @@ DESTDIR=${DESTDIR:-}
 LIBDIR="${PREFIX}/lib/mountcenter"
 BINDIR="${PREFIX}/bin"
 APPDIR="${PREFIX}/share/applications"
+POLICYDIR="/usr/share/polkit-1/actions"
+APPID="io.github.senseikiritof.MountCenter"
 
 if [[ -n "${DESTDIR}" ]]; then
     : # installazione in staging, nessun root richiesto
@@ -15,9 +17,11 @@ elif [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-install -d "${DESTDIR}${LIBDIR}/mountcenter" "${DESTDIR}${BINDIR}" "${DESTDIR}${APPDIR}"
+install -d "${DESTDIR}${LIBDIR}/mountcenter" "${DESTDIR}${BINDIR}" \
+    "${DESTDIR}${APPDIR}" "${DESTDIR}${POLICYDIR}"
 install -m 0644 mountcenter/__init__.py mountcenter/core.py \
-    mountcenter/helper.py mountcenter/app.py "${DESTDIR}${LIBDIR}/mountcenter/"
+    mountcenter/app.py "${DESTDIR}${LIBDIR}/mountcenter/"
+install -m 0755 mountcenter/helper.py "${DESTDIR}${LIBDIR}/mountcenter/helper.py"
 
 cat > "${DESTDIR}${BINDIR}/mountcenter" <<EOF
 #!/usr/bin/env python3
@@ -32,5 +36,10 @@ sed "s|@PREFIX@|${PREFIX}|g" data/mountcenter.desktop.in \
     > "${DESTDIR}${APPDIR}/mountcenter.desktop"
 chmod 0644 "${DESTDIR}${APPDIR}/mountcenter.desktop"
 
+sed "s|@HELPER@|${LIBDIR}/mountcenter/helper.py|g" data/mountcenter.policy.in \
+    > "${DESTDIR}${POLICYDIR}/${APPID}.policy"
+chmod 0644 "${DESTDIR}${POLICYDIR}/${APPID}.policy"
+
 echo "Installato in ${PREFIX}. Avvia con: mountcenter"
 echo "Helper privilegiato: ${LIBDIR}/mountcenter/helper.py"
+echo "Policy polkit: ${POLICYDIR}/${APPID}.policy"

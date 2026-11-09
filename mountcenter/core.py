@@ -9,6 +9,11 @@ from dataclasses import dataclass, field
 
 FSTAB_DEFAULT = "/etc/fstab"
 
+APP_ID = "io.github.senseikiritof.MountCenter"
+POLKIT_ACTION = APP_ID + ".manage"
+TRUST_RULE = "/etc/polkit-1/rules.d/50-mountcenter.rules"
+POLICY_FILE = "/usr/share/polkit-1/actions/" + APP_ID + ".policy"
+
 USER_PERM_FSTYPES = {"exfat", "vfat", "ntfs", "ntfs3"}
 EXT_FSTYPES = {"ext2", "ext3", "ext4"}
 

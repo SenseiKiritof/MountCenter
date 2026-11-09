@@ -14,9 +14,11 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 
-from gi.repository import Adw, Gio, Gtk  # noqa: E402
+from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
 from mountcenter.core import (  # noqa: E402
+    APP_ID,
+    POLICY_FILE,
     USER_PERM_FSTYPES,
     Device,
     build_entry,
@@ -27,8 +29,26 @@ from mountcenter.core import (  # noqa: E402
 )
 
 HELPER = Path(__file__).with_name("helper.py")
-FSTAB = Path("/etc/fstab")
-APP_ID = "io.github.senseikiritof.MountCenter"
+FSTAB = Path(os.environ.get("MOUNTCENTER_FSTAB", "/etc/fstab"))
+STATE_FILE = (
+    Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+    / "mountcenter"
+    / "state.json"
+)
+
+SYSTEM_MOUNTS = {"/", "/boot", "/boot/efi", "/home"}
+IGNORED_FSTYPES = {"swap", "crypto_LUKS"}
+
+
+def _selectable(device: Device) -> bool:
+    return bool(
+        device.uuid
+        and device.fstype
+        and device.type in {"part", "disk"}
+        and device.fstype not in IGNORED_FSTYPES
+        and device.mountpoint not in SYSTEM_MOUNTS
+        and not device.name.startswith(("zram", "loop"))
+    )
 
 
 def _read_fstab() -> str:
@@ -57,6 +77,21 @@ def _list_devices() -> list[Device]:
         return flatten_devices(parse_lsblk(result.stdout))
     except (ValueError, KeyError):
         return []
+
+
+def _load_state() -> dict:
+    try:
+        return json.loads(STATE_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_state(state: dict) -> None:
+    try:
+        STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        STATE_FILE.write_text(json.dumps(state), encoding="utf-8")
+    except OSError:
+        pass
 
 
 class MountCenterWindow(Adw.ApplicationWindow):
@@ -137,9 +172,7 @@ class MountCenterWindow(Adw.ApplicationWindow):
         self._show_placeholder()
 
         candidates = [
-            device
-            for device in _list_devices()
-            if device.uuid and device.fstype and device.type in {"part", "disk"}
+            device for device in _list_devices() if _selectable(device)
         ]
         if not candidates:
             row = Adw.ActionRow(
@@ -150,6 +183,7 @@ class MountCenterWindow(Adw.ApplicationWindow):
             self.device_list.append(row)
             return
 
+        first_row = None
         for device in candidates:
             configured = find_by_uuid(self.fstab_entries, device.uuid or "")
             details = [device.fstype or "?", device.size or "", device.path]
@@ -164,6 +198,10 @@ class MountCenterWindow(Adw.ApplicationWindow):
             row.set_activatable(True)
             row.device = device
             self.device_list.append(row)
+            first_row = first_row or row
+
+        if first_row is not None:
+            self.device_list.select_row(first_row)
 
     def _on_row_selected(self, _listbox: Gtk.ListBox, row: Gtk.ListBoxRow | None) -> None:
         if row is None or not hasattr(row, "device"):
@@ -279,7 +317,6 @@ class MountCenterWindow(Adw.ApplicationWindow):
         permissions = self.perm_row.get_active() and device.fstype in USER_PERM_FSTYPES
         command = [
             "pkexec",
-            sys.executable,
             str(HELPER),
             "apply",
             "--uuid",
@@ -325,6 +362,76 @@ class MountCenterWindow(Adw.ApplicationWindow):
         dialog.add_response("ok", "OK")
         dialog.present(self)
 
+    def maybe_offer_trust(self) -> bool:
+        """First launch: offer to remember the polkit authorization."""
+        if _load_state().get("trust_offered"):
+            return False
+        if not Path(POLICY_FILE).exists():
+            return False  # sviluppo: policy non installata, pkexec chiede ogni volta
+        status = self._trust_status()
+        if status.get("active"):
+            _save_state({**_load_state(), "trust_offered": True})
+            return False
+        dialog = Adw.AlertDialog(
+            heading="Ricordare l'autorizzazione?",
+            body=(
+                "MountCenter può chiedere la password una sola volta e ricordare "
+                "l'autorizzazione per il tuo utente.\n\n"
+                "La regola polkit vale solo per MountCenter e solo nella sessione "
+                "locale attiva: non è un permesso sudo generico. Puoi revocarla con "
+                "`mountcenter-helper trust off`."
+            ),
+        )
+        dialog.add_response("later", "Non ora")
+        dialog.add_response("enable", "Attiva")
+        dialog.set_response_appearance("enable", Adw.ResponseAppearance.SUGGESTED)
+        dialog.set_default_response("enable")
+        dialog.connect("response", self._on_trust_response)
+        dialog.present(self)
+        return False
+
+    def _trust_status(self) -> dict:
+        try:
+            result = subprocess.run(
+                [sys.executable, str(HELPER), "trust", "status"],
+                capture_output=True,
+                text=True,
+            )
+        except OSError:
+            return {}
+        try:
+            return json.loads(result.stdout.strip() or "{}")
+        except ValueError:
+            return {}
+
+    def _on_trust_response(self, _dialog: Adw.AlertDialog, response: str) -> None:
+        _save_state({**_load_state(), "trust_offered": True})
+        if response != "enable":
+            return
+        try:
+            result = subprocess.run(
+                ["pkexec", str(HELPER), "trust", "on"],
+                capture_output=True,
+                text=True,
+            )
+        except OSError as error:
+            self._alert("Autorizzazione non attivata", str(error))
+            return
+        payload: dict = {}
+        try:
+            payload = json.loads(result.stdout.strip() or "{}")
+        except ValueError:
+            payload = {}
+        if result.returncode == 0 and payload.get("ok"):
+            self._toast("Autorizzazione ricordata.")
+        else:
+            message = (
+                payload.get("error")
+                or result.stderr.strip()
+                or "Operazione annullata."
+            )
+            self._alert("Autorizzazione non attivata", message)
+
 
 class MountCenterApp(Adw.Application):
     def __init__(self):
@@ -338,6 +445,7 @@ class MountCenterApp(Adw.Application):
         if window is None:
             window = MountCenterWindow(self)
         window.present()
+        GLib.idle_add(window.maybe_offer_trust)
 
 
 def main(argv: list[str] | None = None) -> int:

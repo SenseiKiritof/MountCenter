@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>MountCenter</vendor>
+  <action id="io.github.senseikiritof.MountCenter.manage">
+    <description>Configure the automatic mount of disks</description>
+    <description xml:lang="it">Configurare il mount automatico dei dischi</description>
+    <message>Authentication is required to change /etc/fstab</message>
+    <message xml:lang="it">Per modificare /etc/fstab è richiesta l'autenticazione</message>
+    <icon_name>drive-harddisk</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">@HELPER@</annotate>
+    <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
+  </action>
+</policyconfig>

@@ -131,5 +131,43 @@ class HelperJsonTest(unittest.TestCase):
             self.assertEqual(payload["entries"][0]["mount_point"], "/mnt/Games 2TB")
 
 
+class TrustTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.rule = os.path.join(self.tmp.name, "rules.d", "50-mountcenter.rules")
+
+    def test_rule_roundtrip(self):
+        self.assertEqual(helper.trust_users(self.rule), [])
+        helper.trust_write(["miku", "root"], self.rule)
+        self.assertEqual(helper.trust_users(self.rule), ["miku", "root"])
+        text = Path(self.rule).read_text(encoding="utf-8")
+        self.assertIn("io.github.senseikiritof.MountCenter.manage", text)
+        self.assertIn('["miku", "root"]', text)
+        self.assertIn("subject.local && subject.active", text)
+
+    def test_trust_set_add_remove(self):
+        helper.trust_set("miku", True, self.rule)
+        self.assertEqual(helper.trust_users(self.rule), ["miku"])
+        helper.trust_set("root", True, self.rule)
+        self.assertEqual(helper.trust_users(self.rule), ["miku", "root"])
+        helper.trust_set("miku", False, self.rule)
+        self.assertEqual(helper.trust_users(self.rule), ["root"])
+        helper.trust_set("root", False, self.rule)
+        self.assertFalse(os.path.exists(self.rule))
+
+    def test_status_shape(self):
+        helper.trust_set("miku", True, self.rule)
+        payload = helper.trust_status(self.rule)
+        self.assertTrue(payload["ok"])
+        self.assertIn("miku", payload["trusted"])
+        self.assertEqual(
+            payload["active"], helper.current_user() in payload["trusted"]
+        )
+
+    def test_cli_trust_status(self):
+        self.assertEqual(helper.main(["trust", "status", "--rule", self.rule]), 0)
+
+
 if __name__ == "__main__":
     unittest.main()
