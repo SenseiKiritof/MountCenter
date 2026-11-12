@@ -188,7 +188,8 @@ class MountCenterWindow(Adw.ApplicationWindow):
             configured = find_by_uuid(self.fstab_entries, device.uuid or "")
             details = [device.fstype or "?", device.size or "", device.path]
             if configured:
-                details.append(f"fstab: {configured[0].mount_point}")
+                mode = "primo accesso" if configured[0].automount else "avvio"
+                details.append(f"fstab: {configured[0].mount_point} ({mode})")
             elif device.mountpoint:
                 details.append(f"montato in {device.mountpoint}")
             row = Adw.ActionRow(
@@ -197,9 +198,13 @@ class MountCenterWindow(Adw.ApplicationWindow):
             )
             row.set_activatable(True)
             row.device = device
-            if configured and configured[0].automount:
-                icon = Gtk.Image.new_from_icon_name("emblem-ok-symbolic")
-                icon.set_tooltip_text("Mount automatico configurato")
+            if configured:
+                if configured[0].automount:
+                    icon = Gtk.Image.new_from_icon_name("emblem-ok-symbolic")
+                    icon.set_tooltip_text("Automount al primo accesso")
+                else:
+                    icon = Gtk.Image.new_from_icon_name("drive-harddisk-symbolic")
+                    icon.set_tooltip_text("Montato all'avvio")
                 row.add_prefix(icon)
             self.device_list.append(row)
             first_row = first_row or row
@@ -231,7 +236,8 @@ class MountCenterWindow(Adw.ApplicationWindow):
         group = Adw.PreferencesGroup()
         group.set_title("Mount automatico")
         group.set_description(
-            "La voce viene aggiunta a /etc/fstab con nofail e x-systemd.automount."
+            "All'avvio monta con local-fs.target; al primo accesso usa "
+            "x-systemd.automount. nofail evita di bloccare il boot."
         )
 
         self.mount_row = Adw.EntryRow(title="Punto di montaggio")
@@ -242,15 +248,18 @@ class MountCenterWindow(Adw.ApplicationWindow):
         self.mount_row.connect("notify::text", lambda *_: self._update_preview(device))
         group.add(self.mount_row)
 
-        self.automount_row = Adw.SwitchRow(title="Monta automaticamente")
-        self.automount_row.set_subtitle(
-            "x-systemd.automount: monta al primo accesso, senza bloccare l'avvio"
+        self.mode_row = Adw.ComboRow(title="Quando montare")
+        self.mode_row.set_subtitle(
+            "All'avvio: subito al boot. Al primo accesso: solo quando apri il disco."
         )
-        self.automount_row.set_active(
-            configured[0].automount if configured else True
+        self.mode_row.set_model(
+            Gtk.StringList.new(["All'avvio", "Al primo accesso"])
         )
-        self.automount_row.connect("notify::active", lambda *_: self._update_preview(device))
-        group.add(self.automount_row)
+        self.mode_row.set_selected(
+            1 if not configured or configured[0].automount else 0
+        )
+        self.mode_row.connect("notify::selected", lambda *_: self._update_preview(device))
+        group.add(self.mode_row)
 
         self.perm_row = Adw.SwitchRow(title="Permessi utente")
         self.perm_row.set_subtitle(f"uid={os.getuid()}, gid={os.getgid()}")
@@ -273,6 +282,19 @@ class MountCenterWindow(Adw.ApplicationWindow):
         self.preview.set_wrap(True)
         self.preview.set_xalign(0)
         self.detail_box.append(self.preview)
+
+        if configured and configured[0].passno != 0 and device.fstype in USER_PERM_FSTYPES:
+            warning = Gtk.Label(
+                label=(
+                    f"Attenzione: passno {configured[0].passno} attiva fsck su "
+                    f"{device.fstype}. Per questi filesystem usa 0 0: fsck può "
+                    "rallentare l'avvio o il primo accesso."
+                )
+            )
+            warning.add_css_class("dim-label")
+            warning.set_wrap(True)
+            warning.set_xalign(0)
+            self.detail_box.append(warning)
 
         self.apply_button = Gtk.Button()
         self.apply_button.add_css_class("suggested-action")
@@ -298,7 +320,7 @@ class MountCenterWindow(Adw.ApplicationWindow):
             device.fstype or "",
             uid=os.getuid() if permissions else None,
             gid=os.getgid() if permissions else None,
-            automount=self.automount_row.get_active(),
+            automount=self.mode_row.get_selected() == 1,
         )
 
     def _update_preview(self, device: Device) -> None:
@@ -332,7 +354,7 @@ class MountCenterWindow(Adw.ApplicationWindow):
         ]
         if permissions:
             command += ["--uid", str(os.getuid()), "--gid", str(os.getgid())]
-        if not self.automount_row.get_active():
+        if self.mode_row.get_selected() == 0:
             command.append("--no-automount")
 
         try:

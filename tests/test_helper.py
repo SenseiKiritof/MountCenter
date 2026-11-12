@@ -80,6 +80,17 @@ class HelperTest(unittest.TestCase):
             "# /etc/fstab di test\nUUID=ROOT  /  btrfs  subvol=root  0  0\n",
         )
 
+    def test_boot_mount_has_no_automount(self):
+        entry = build_entry(
+            "FE7B-D8D1", "/mnt/boot-mount", "exfat", automount=False
+        )
+        helper.apply(entry, fstab_path=self.fstab, verify_device=False)
+        text = Path(self.fstab).read_text(encoding="utf-8")
+        last = text.strip().splitlines()[-1]
+        self.assertIn("/mnt/boot-mount", last)
+        self.assertNotIn("x-systemd.automount", last)
+        self.assertTrue(last.endswith("  0  0"), last)
+
     def test_remove_unknown_uuid(self):
         with self.assertRaises(helper.HelperError):
             helper.remove(uuid="NOPE", fstab_path=self.fstab)
