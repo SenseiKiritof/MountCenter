@@ -8,15 +8,16 @@ Two front ends share the same rules:
 - `mountcenter` — GTK4/libadwaita application, for normal desktop use.
 - `setup-automount.sh` — legacy interactive root script, for headless use.
 
-Both derive the UUID with `blkid`, write a line with `nofail` and
-`x-systemd.automount`, escape spaces and tabs in the mount point (`\040`,
-`\011`), refuse duplicate UUIDs and duplicate mount points, back up
+Both derive the UUID with `blkid`, escape spaces and tabs in the mount point
+(`\040`, `\011`), refuse duplicate UUIDs and duplicate mount points, back up
 `/etc/fstab`, reload systemd and verify that the generated mount unit exists.
+The GUI and the helper can mount a disk at boot or on first access; the legacy
+script always writes `x-systemd.automount`.
 
 ![MountCenter main window: disks on the left, details and fstab preview on the right](docs/screenshots/main.png)
 
 Selecting a disk that is not configured yet shows an editable mount point, the
-automount and permission switches, and the exact fstab line before applying:
+mount mode and permission switches, and the exact fstab line before applying:
 
 ![Configuring a new automatic mount](docs/screenshots/new-mount.png)
 
@@ -52,17 +53,32 @@ sudo ./setup-automount.sh
 1. Pick a partition from the list; mounted and already-configured disks are
    labelled.
 2. Edit the mount point (default `/mnt/<label>`).
-3. Choose automount and, for exfat/vfat/ntfs, user permissions.
+3. Choose when to mount (**All'avvio** or **Al primo accesso**) and, for
+   exfat/vfat/ntfs, user permissions.
 4. Check the fstab preview, then press **Applica**.
 5. Authenticate with polkit. On success the list refreshes.
 
-Entries already present in `/etc/fstab` are shown read-only; entries with
-automount configured carry a check icon in the list. Removal is available
-through the helper:
+Entries already present in `/etc/fstab` are shown read-only, with the mount
+mode in their subtitle. A check icon means automount on first access, a disk
+icon means mounted at boot. Removal is available through the helper:
 
 ```bash
 sudo mountcenter/helper.py remove --uuid FE7B-D8D1
 ```
+
+## Mount modes
+
+- **All'avvio** — no `x-systemd.automount`: systemd mounts the disk at boot
+  through `local-fs.target`, together with the other fstab entries. `nofail`
+  keeps the boot going when the disk is missing.
+- **Al primo accesso** — adds `x-systemd.automount`: nothing is mounted at
+  boot; the first opening of the mount point triggers the mount. It stays
+  mounted until unmount or reboot (no idle timeout).
+
+Neither mode runs `fsck` on exfat/vfat/ntfs: the helper writes `passno 0`.
+Entries created by older versions may still have `passno 2`, so `fsck` runs on
+first access and can take minutes on a large exfat volume; the detail page
+warns and `0 0` in the fstab line fixes it.
 
 ## Compatibility
 

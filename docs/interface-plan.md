@@ -1,9 +1,10 @@
 # Piano interfaccia grafica — MountCenter
 
 Stato: implementato quasi per intero. Core, helper privilegiato, GUI
-(GTK4/libadwaita) con primo avvio e autorizzazione polkit ricordata, install
-script, RPM e workflow di release sono presenti. Restano: rimozione e stato
-automount nella GUI, rifiniture della policy polkit, pacchetti Debian/Arch.
+(GTK4/libadwaita) con scelta mount all'avvio o al primo accesso, primo avvio e
+autorizzazione polkit ricordata, install script, RPM e workflow di release sono
+presenti. Restano: rimozione e stato automount nella GUI, rifiniture della
+policy polkit, pacchetti Debian/Arch.
 
 Obiettivo: sostituire la sessione interattiva da terminale con una GUI GTK4 /
 libadwaita che permetta di scegliere una partizione, configurare il mount
