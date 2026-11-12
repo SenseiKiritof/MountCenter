@@ -1,5 +1,5 @@
 Name:           mountcenter
-Version:        0.1.1
+Version:        0.1.2
 Release:        1%{?dist}
 Summary:        Configure systemd automount entries for disks
 License:        GPL-3.0-or-later
@@ -39,6 +39,11 @@ make install DESTDIR=%{buildroot} PREFIX=%{_prefix}
 %{_datadir}/polkit-1/actions/io.github.senseikiritof.MountCenter.policy
 
 %changelog
+* Thu Nov 12 2026 senseikiritof <tonifede98@gmail.com> - 0.1.2-1
+- Choose boot mount or automount on first access from the GUI
+- Distinct icons and subtitles for the two mount modes
+- Warn about fsck passno on exfat/vfat/ntfs entries
+
 * Mon Nov 09 2026 senseikiritof <tonifede98@gmail.com> - 0.1.1-1
 - Automount check icon in the disk list
 - Compatibility tests on Debian, Ubuntu, Arch and openSUSE
